@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -10,6 +10,17 @@ import Icon from '@/components/ui/icon';
 
 const Index = () => {
   const [activeSection, setActiveSection] = useState('home');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [formData, setFormData] = useState({ name: '', phone: '', email: '', message: '' });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  
+  const [calculatorData, setCalculatorData] = useState({
+    deviceType: '',
+    brand: '',
+    issueType: '',
+    urgency: 'standard'
+  });
 
   const services = [
     {
@@ -34,7 +45,7 @@ const Index = () => {
     }
   ];
 
-  const supplies = [
+  const allSupplies = [
     {
       category: 'Картриджи для лазерных принтеров',
       items: [
@@ -79,6 +90,65 @@ const Index = () => {
       excerpt: 'Избегайте этих распространенных ошибок, чтобы оргтехника работала дольше...'
     }
   ];
+
+  const filteredSupplies = useMemo(() => {
+    if (!searchQuery.trim()) return allSupplies;
+    
+    const query = searchQuery.toLowerCase();
+    return allSupplies.map(category => ({
+      ...category,
+      items: category.items.filter(item => 
+        item.name.toLowerCase().includes(query)
+      )
+    })).filter(category => category.items.length > 0);
+  }, [searchQuery]);
+
+  const handleFormChange = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setSubmitStatus('idle');
+
+    try {
+      const response = await fetch('https://functions.poehali.dev/e6e3a015-3d04-45fa-baa2-763ae25f58cf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      });
+
+      if (response.ok) {
+        setSubmitStatus('success');
+        setFormData({ name: '', phone: '', email: '', message: '' });
+      } else {
+        setSubmitStatus('error');
+      }
+    } catch (error) {
+      setSubmitStatus('error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const calculateRepairCost = () => {
+    let baseCost = 0;
+    
+    if (calculatorData.deviceType === 'printer') baseCost = 1500;
+    else if (calculatorData.deviceType === 'mfu') baseCost = 2000;
+    else if (calculatorData.deviceType === 'copier') baseCost = 2500;
+    else if (calculatorData.deviceType === 'scanner') baseCost = 1200;
+    
+    if (calculatorData.issueType === 'diagnostic') baseCost += 0;
+    else if (calculatorData.issueType === 'cleaning') baseCost += 800;
+    else if (calculatorData.issueType === 'repair') baseCost += 2000;
+    else if (calculatorData.issueType === 'replacement') baseCost += 3500;
+    
+    if (calculatorData.urgency === 'urgent') baseCost *= 1.3;
+    
+    return baseCost;
+  };
 
   const faqs = [
     {
@@ -198,7 +268,7 @@ const Index = () => {
 
             <section className="py-16">
               <div className="container">
-                <div className="grid lg:grid-cols-3 gap-8">
+                <div className="grid lg:grid-cols-3 gap-8 mb-16">
                   <Card>
                     <CardHeader>
                       <div className="flex items-center gap-4">
@@ -239,6 +309,95 @@ const Index = () => {
                     </CardHeader>
                   </Card>
                 </div>
+
+                <Card className="max-w-3xl mx-auto">
+                  <CardHeader>
+                    <CardTitle className="text-2xl text-center">Калькулятор стоимости ремонта</CardTitle>
+                    <CardDescription className="text-center">Получите примерную оценку за 1 минуту</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Тип устройства</label>
+                        <select 
+                          className="w-full h-10 px-3 rounded-md border border-input bg-background"
+                          value={calculatorData.deviceType}
+                          onChange={(e) => setCalculatorData(prev => ({ ...prev, deviceType: e.target.value }))}
+                        >
+                          <option value="">Выберите тип</option>
+                          <option value="printer">Принтер</option>
+                          <option value="mfu">МФУ</option>
+                          <option value="copier">Копир</option>
+                          <option value="scanner">Сканер</option>
+                        </select>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Марка</label>
+                        <Input 
+                          placeholder="HP, Canon, Xerox..." 
+                          value={calculatorData.brand}
+                          onChange={(e) => setCalculatorData(prev => ({ ...prev, brand: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Тип работы</label>
+                      <select 
+                        className="w-full h-10 px-3 rounded-md border border-input bg-background"
+                        value={calculatorData.issueType}
+                        onChange={(e) => setCalculatorData(prev => ({ ...prev, issueType: e.target.value }))}
+                      >
+                        <option value="">Выберите тип работы</option>
+                        <option value="diagnostic">Диагностика</option>
+                        <option value="cleaning">Чистка и профилактика</option>
+                        <option value="repair">Ремонт</option>
+                        <option value="replacement">Замена узлов</option>
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Срочность</label>
+                      <div className="flex gap-4">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input 
+                            type="radio" 
+                            name="urgency" 
+                            value="standard"
+                            checked={calculatorData.urgency === 'standard'}
+                            onChange={(e) => setCalculatorData(prev => ({ ...prev, urgency: e.target.value }))}
+                            className="w-4 h-4"
+                          />
+                          <span>Стандартный (24ч)</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input 
+                            type="radio" 
+                            name="urgency" 
+                            value="urgent"
+                            checked={calculatorData.urgency === 'urgent'}
+                            onChange={(e) => setCalculatorData(prev => ({ ...prev, urgency: e.target.value }))}
+                            className="w-4 h-4"
+                          />
+                          <span>Срочный (2ч) +30%</span>
+                        </label>
+                      </div>
+                    </div>
+                    {calculatorData.deviceType && calculatorData.issueType && (
+                      <div className="p-6 bg-accent/10 rounded-lg border-2 border-accent">
+                        <div className="text-center">
+                          <p className="text-sm text-muted-foreground mb-2">Примерная стоимость</p>
+                          <p className="text-4xl font-bold text-accent">{calculateRepairCost().toLocaleString()} ₽</p>
+                          <p className="text-xs text-muted-foreground mt-2">
+                            *Точная стоимость определяется после диагностики
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    <Button className="w-full" size="lg" onClick={() => setActiveSection('contacts')}>
+                      <Icon name="Phone" size={18} className="mr-2" />
+                      Оставить заявку
+                    </Button>
+                  </CardContent>
+                </Card>
               </div>
             </section>
           </>
@@ -247,11 +406,22 @@ const Index = () => {
         {activeSection === 'supplies' && (
           <section className="py-16">
             <div className="container">
-              <div className="text-center mb-12">
+              <div className="text-center mb-8">
                 <h2 className="text-3xl md:text-4xl font-bold mb-4">Каталог расходных материалов</h2>
                 <p className="text-muted-foreground text-lg">
                   Актуальный прайс-лист на расходники для оргтехники
                 </p>
+              </div>
+              <div className="max-w-md mx-auto mb-8">
+                <div className="relative">
+                  <Icon name="Search" size={20} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <Input 
+                    placeholder="Поиск по каталогу..." 
+                    className="pl-10"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
               </div>
               <Tabs defaultValue="all" className="w-full">
                 <TabsList className="grid w-full max-w-md mx-auto grid-cols-4 mb-8">
@@ -261,7 +431,15 @@ const Index = () => {
                   <TabsTrigger value="drums">Барабаны</TabsTrigger>
                 </TabsList>
                 <TabsContent value="all" className="space-y-6">
-                  {supplies.map((category, index) => (
+                  {filteredSupplies.length === 0 ? (
+                    <Card>
+                      <CardContent className="py-12 text-center">
+                        <Icon name="Search" size={48} className="mx-auto mb-4 text-muted-foreground" />
+                        <p className="text-muted-foreground">Ничего не найдено по запросу "{searchQuery}"</p>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    filteredSupplies.map((category, index) => (
                     <Card key={index}>
                       <CardHeader>
                         <CardTitle className="text-xl">{category.category}</CardTitle>
@@ -293,16 +471,16 @@ const Index = () => {
                         </div>
                       </CardContent>
                     </Card>
-                  ))}
+                  )))}
                 </TabsContent>
                 <TabsContent value="cartridges">
                   <Card>
                     <CardHeader>
-                      <CardTitle className="text-xl">{supplies[0].category}</CardTitle>
+                      <CardTitle className="text-xl">{allSupplies[0].category}</CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-3">
-                        {supplies[0].items.map((item, idx) => (
+                        {allSupplies[0].items.map((item, idx) => (
                           <div
                             key={idx}
                             className="flex items-center justify-between py-3 border-b last:border-0"
@@ -331,11 +509,11 @@ const Index = () => {
                 <TabsContent value="toners">
                   <Card>
                     <CardHeader>
-                      <CardTitle className="text-xl">{supplies[1].category}</CardTitle>
+                      <CardTitle className="text-xl">{allSupplies[1].category}</CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-3">
-                        {supplies[1].items.map((item, idx) => (
+                        {allSupplies[1].items.map((item, idx) => (
                           <div
                             key={idx}
                             className="flex items-center justify-between py-3 border-b last:border-0"
@@ -359,11 +537,11 @@ const Index = () => {
                 <TabsContent value="drums">
                   <Card>
                     <CardHeader>
-                      <CardTitle className="text-xl">{supplies[2].category}</CardTitle>
+                      <CardTitle className="text-xl">{allSupplies[2].category}</CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-3">
-                        {supplies[2].items.map((item, idx) => (
+                        {allSupplies[2].items.map((item, idx) => (
                           <div
                             key={idx}
                             className="flex items-center justify-between py-3 border-b last:border-0"
@@ -507,26 +685,60 @@ const Index = () => {
                       <CardDescription>И мы свяжемся с вами в ближайшее время</CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <form className="space-y-4">
+                      <form onSubmit={handleFormSubmit} className="space-y-4">
                         <div className="space-y-2">
                           <label className="text-sm font-medium">Имя</label>
-                          <Input placeholder="Ваше имя" />
+                          <Input 
+                            placeholder="Ваше имя" 
+                            value={formData.name}
+                            onChange={(e) => handleFormChange('name', e.target.value)}
+                            required
+                          />
                         </div>
                         <div className="space-y-2">
                           <label className="text-sm font-medium">Телефон</label>
-                          <Input placeholder="+7 (___) ___-__-__" />
+                          <Input 
+                            placeholder="+7 (___) ___-__-__" 
+                            value={formData.phone}
+                            onChange={(e) => handleFormChange('phone', e.target.value)}
+                            required
+                          />
                         </div>
                         <div className="space-y-2">
                           <label className="text-sm font-medium">Email</label>
-                          <Input type="email" placeholder="your@email.ru" />
+                          <Input 
+                            type="email" 
+                            placeholder="your@email.ru" 
+                            value={formData.email}
+                            onChange={(e) => handleFormChange('email', e.target.value)}
+                            required
+                          />
                         </div>
                         <div className="space-y-2">
                           <label className="text-sm font-medium">Сообщение</label>
-                          <Textarea placeholder="Опишите вашу задачу" rows={4} />
+                          <Textarea 
+                            placeholder="Опишите вашу задачу" 
+                            rows={4} 
+                            value={formData.message}
+                            onChange={(e) => handleFormChange('message', e.target.value)}
+                            required
+                          />
                         </div>
-                        <Button className="w-full" size="lg">
+                        {submitStatus === 'success' && (
+                          <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-green-800 text-sm">
+                            <Icon name="CheckCircle" size={16} className="inline mr-2" />
+                            Заявка успешно отправлена! Мы свяжемся с вами в ближайшее время.
+                          </div>
+                        )}
+                        {submitStatus === 'error' && (
+                          <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm">
+                            <Icon name="AlertCircle" size={16} className="inline mr-2" />
+                            Ошибка отправки. Попробуйте позже или позвоните нам.
+                          </div>
+                        )}
+                        <Button className="w-full" size="lg" type="submit" disabled={isSubmitting}>
                           <Icon name="Send" size={18} className="mr-2" />
-                          Отправить заявку
+                          {isSubmitting ? 'Отправка...' : 'Отправить заявку'}
                         </Button>
                       </form>
                     </CardContent>
